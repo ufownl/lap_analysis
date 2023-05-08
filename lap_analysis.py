@@ -83,14 +83,30 @@ class LapDataParser(HTMLParser):
             self.__data[self.__index].append(tuple(float(v) for v in data.split(":")))
 
 
-def process(data):
+def process_line(line):
+    out = []
+    i = 0
+    while i < len(line):
+        t = [line[i]]
+        j = i + 1
+        while j < len(line) and line[j][0] <= line[i][0]:
+            t.append(line[j])
+            j += 1
+        d = ((line[j][0] if j < len(line) else 1.0) - line[i][0]) / len(t)
+        for k, v in enumerate(t):
+            out.append((v[0] + k * d, v[1]))
+        i = j
+    return out
+
+
+def process_data(data):
     for line in data:
-        x, y = zip(*([line[0]] + [line[i] for i in range(1, len(line)) if line[i][0] > line[i - 1][0]]))
+        x, y = zip(*process_line(line))
         for i in range(1, len(x)):
             if x[i - 1] >= x[i]:
                 print(i)
         f = interpolate.interp1d(np.array(x), np.array(y),kind="slinear")
-        x1 = np.linspace(x[0], x[-1], int((x[-1] - x[0]) * 1000))
+        x1 = np.linspace(x[0], x[-1], int((x[-1] - x[0]) * 100))
         yield x1, f(x1)
 
 
@@ -114,7 +130,7 @@ if __name__ == "__main__":
     r = requests.get(args.url)
     p = LapDataParser()
     p.feed(r.text)
-    data = tuple((x, y) for x, y in process(p.data))
+    data = tuple((x, y) for x, y in process_data(p.data))
     t = [(x, lap_time(x * args.length * 1000, y)) for x, y in data]
     n = min(len(x) for x, _ in t)
     plt.subplot(2, 1, 1)
