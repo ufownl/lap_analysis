@@ -98,14 +98,14 @@ if __name__ == "__main__":
     p = LapDataParser()
     p.feed(r.text)
     data = tuple((x, y) for x, y in process(p.data))
+    t = [(x, lap_time(x * args.length * 1000, y)) for x, y in data]
+    n = min(len(x) for x, _ in t)
     plt.subplot(2, 1, 1)
     for i, (x, y) in enumerate(data):
-        plt.plot(x * args.length, y, label="serie-%d"%i)
+        plt.plot(x[:n] * args.length, y[:n], label="serie-%d"%i)
     plt.grid(True)
     plt.legend()
     plt.subplot(2, 1, 2)
-    t = [(x, lap_time(x * args.length * 1000, y)) for x, y in data]
-    n = min(len(x) for x, _ in t)
     plt.plot(t[0][0][:n] * args.length, t[0][1][:n] - t[1][1][:n], label="time diff")
     plt.grid(True)
     plt.legend()
