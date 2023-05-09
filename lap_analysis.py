@@ -143,12 +143,26 @@ class LapDataParser(HTMLParser):
             yield [(axis_x(line[i]), axis_y(line[i + 1])) for i in range(0, len(line), 2)]
 
 
-def process_data(data):
+def process_data(data, epsilon):
     for line in data:
         x, y = zip(*line)
         f = interpolate.interp1d(np.array(x), np.array(y), kind="slinear")
-        x1 = np.linspace(x[0], x[-1], int((x[-1] - x[0]) * 10000))
+        x1 = np.linspace(x[0], x[-1], int((x[-1] - x[0]) / epsilon))
         yield x1, f(x1)
+
+
+def align_data(t, epsilon):
+    if abs(t[0][0][0] - t[1][0][0]) < epsilon:
+        return t
+    i = 1
+    if t[0][0][0] < t[1][0][0]:
+        while t[0][0][i] < t[1][0][0]:
+            i += 1
+        return [(t[0][0][i:], t[0][1][i:]), t[1]]
+    else:
+        while t[1][0][i] < t[0][0][0]:
+            i += 1
+        return [t[0], (t[1][0][i:], t[1][1][i:])]
 
 
 def lap_time(x, y):
@@ -162,30 +176,18 @@ def lap_time(x, y):
     return np.array(z)
 
 
-def align(t):
-    if t[0][0][0] < t[1][0][0]:
-        i = 1
-        while t[0][0][i] < t[1][0][0]:
-            i += 1
-        return [(t[0][0][i:], t[0][1][i:]), t[1]]
-    else:
-        i = 0
-        while t[1][0][i] < t[0][0][0]:
-            i += 1
-        return [t[0], (t[1][0][i:], t[1][1][i:])]
-
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Time-diff chart for stracker.")
     parser.add_argument("--url", help="url of lap details page", type=str, required=True)
     parser.add_argument("--length", help="circuit length (km)", type=float, required=True)
+    parser.add_argument("--epsilon", help="data alignment accuracy (default: 1e-4)", type=float, default=1e-4)
     args = parser.parse_args()
 
     r = requests.get(args.url)
     p = LapDataParser()
     p.feed(r.text)
-    data = tuple((x, y) for x, y in process_data(p.data))
-    t = [(x, lap_time(x * args.length * 1000, y)) for x, y in align(data)]
+    data = tuple((x, y) for x, y in process_data(p.data, args.epsilon))
+    t = [(x, lap_time(x * args.length * 1000, y)) for x, y in align_data(data, args.epsilon)]
     n = min(len(x) for x, _ in t)
     fig = plt.figure()
     ax0 = fig.add_subplot(111)
