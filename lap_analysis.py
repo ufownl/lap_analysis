@@ -24,89 +24,130 @@ from enum import Enum
 from html.parser import HTMLParser
 
 
+class Axis:
+    def __init__(self):
+        self.__x = []
+        self.__y = []
+
+    def append_x(self, x):
+        self.__x.append(x)
+
+    def append_y(self, y):
+        self.__y.append(y)
+
+    def __call__(self):
+        w, b = np.polyfit(self.__x, self.__y, 1)
+        return lambda x: w * x + b
+
+
 class LapDataParser(HTMLParser):
-    Status = Enum("Status", ["INIT", "PLOT", "LINE", "DOT", "DATA", "DONE"])
+    Status = Enum("Status", ["INIT", "PLOT", "AXIS_X", "GUIDE_X", "TEXT_X", "AXIS_Y", "GUIDE_Y", "TEXT_Y", "LINE", "DONE"])
 
     def __init__(self, **kwargs):
         super(LapDataParser, self).__init__(**kwargs)
         self.__status = LapDataParser.Status.INIT
+        self.__axis_x = Axis()
+        self.__axis_y = Axis()
         self.__index = None
-        self.__data = ([], [])
+        self.__data = [None, None]
 
     @property
     def data(self):
-        return self.__data
+        axis_x = self.__axis_x()
+        axis_y = self.__axis_y()
+        return [line for line in self.__data_impl(axis_x, axis_y)]
 
     def handle_starttag(self, tag, attrs):
         if self.__status == LapDataParser.Status.INIT:
             if tag == "g":
                 for k, v in attrs:
-                    if k == "class" and v == "plot overlay":
+                    if k == "class" and v == "plot":
                         self.__status = LapDataParser.Status.PLOT
                         break
         elif self.__status == LapDataParser.Status.PLOT:
             if tag == "g":
-                self.__status = LapDataParser.Status.LINE
                 for k, v in attrs:
                     if k == "class":
-                        if v == "series serie-0 color-0":
+                        if v == "axis x":
+                            self.__status = LapDataParser.Status.AXIS_X
+                        elif v == "axis y":
+                            self.__status = LapDataParser.Status.AXIS_Y
+                        elif v == "series serie-0 color-0":
+                            self.__status = LapDataParser.Status.LINE
                             self.__index = 0
                         elif v == "series serie-1 color-1":
+                            self.__status = LapDataParser.Status.LINE
                             self.__index = 1
                         break
-        elif self.__status == LapDataParser.Status.LINE:
+        elif self.__status == LapDataParser.Status.AXIS_X:
             if tag == "g":
-                self.__status = LapDataParser.Status.DOT
-        elif self.__status == LapDataParser.Status.DOT:
-            if tag == "desc":
+                self.__status = LapDataParser.Status.GUIDE_X
+        elif self.__status == LapDataParser.Status.GUIDE_X:
+            if tag == "path":
                 for k, v in attrs:
-                    if k == "class" and v == "value":
-                        self.__status = LapDataParser.Status.DATA
-                        break
+                    if k == "d":
+                        self.__axis_x.append_x(float(v.split(" ")[0][1:]))
+            elif tag == "text":
+                self.__status = LapDataParser.Status.TEXT_X
+        elif self.__status == LapDataParser.Status.AXIS_Y:
+            if tag == "g":
+                self.__status = LapDataParser.Status.GUIDE_Y
+        elif self.__status == LapDataParser.Status.GUIDE_Y:
+            if tag == "path":
+                for k, v in attrs:
+                    if k == "d":
+                        self.__axis_y.append_x(float(v.split(" ")[1]))
+            elif tag == "text":
+                self.__status = LapDataParser.Status.TEXT_Y
+        elif self.__status == LapDataParser.Status.LINE:
+            if tag == "path":
+                for k, v in attrs:
+                    if k == "d":
+                        self.__data[self.__index] = [float(x) if x[0].isdigit() else float(x[1:]) for x in v.split(" ")]
 
     def handle_endtag(self, tag):
         if self.__status == LapDataParser.Status.PLOT:
             if tag == "g":
                 self.__status = LapDataParser.Status.DONE
+        elif self.__status == LapDataParser.Status.AXIS_X:
+            if tag == "g":
+                self.__status = LapDataParser.Status.PLOT
+        elif self.__status == LapDataParser.Status.GUIDE_X:
+            if tag == "g":
+                self.__status = LapDataParser.Status.AXIS_X
+        elif self.__status == LapDataParser.Status.TEXT_X:
+            if tag == "text":
+                self.__status = LapDataParser.Status.GUIDE_X
+        elif self.__status == LapDataParser.Status.AXIS_Y:
+            if tag == "g":
+                self.__status = LapDataParser.Status.PLOT
+        elif self.__status == LapDataParser.Status.GUIDE_Y:
+            if tag == "g":
+                self.__status = LapDataParser.Status.AXIS_Y
+        elif self.__status == LapDataParser.Status.TEXT_Y:
+            if tag == "text":
+                self.__status = LapDataParser.Status.GUIDE_Y
         elif self.__status == LapDataParser.Status.LINE:
             if tag == "g":
                 self.__status = LapDataParser.Status.PLOT
-        elif self.__status == LapDataParser.Status.DOT:
-            if tag == "g":
-                self.__status = LapDataParser.Status.LINE
-        elif self.__status == LapDataParser.Status.DATA:
-            if tag == "desc":
-                self.__status = LapDataParser.Status.DOT
 
     def handle_data(self, data):
-        if self.__status == LapDataParser.Status.DATA and not self.__index is None:
-            self.__data[self.__index].append(tuple(float(v) for v in data.split(":")))
+        if self.__status == LapDataParser.Status.TEXT_X:
+            self.__axis_x.append_y(float(data))
+        elif self.__status == LapDataParser.Status.TEXT_Y:
+            self.__axis_y.append_y(float(data))
 
 
-def process_line(line):
-    out = []
-    i = 0
-    while i < len(line):
-        t = [line[i]]
-        j = i + 1
-        while j < len(line) and line[j][0] <= line[i][0]:
-            t.append(line[j])
-            j += 1
-        d = ((line[j][0] if j < len(line) else 1.0) - line[i][0]) / len(t)
-        for k, v in enumerate(t):
-            out.append((v[0] + k * d, v[1]))
-        i = j
-    return out
+    def __data_impl(self, axis_x, axis_y):
+        for line in self.__data:
+            yield [(axis_x(line[i]), axis_y(line[i + 1])) for i in range(0, len(line), 2)]
 
 
 def process_data(data):
     for line in data:
-        x, y = zip(*process_line(line))
-        for i in range(1, len(x)):
-            if x[i - 1] >= x[i]:
-                print(i)
-        f = interpolate.interp1d(np.array(x), np.array(y),kind="slinear")
-        x1 = np.linspace(x[0], x[-1], int((x[-1] - x[0]) * 100))
+        x, y = zip(*line)
+        f = interpolate.interp1d(np.array(x), np.array(y), kind="slinear")
+        x1 = np.linspace(x[0], x[-1], int((x[-1] - x[0]) * 10000))
         yield x1, f(x1)
 
 
@@ -121,6 +162,19 @@ def lap_time(x, y):
     return np.array(z)
 
 
+def align(t):
+    if t[0][0][0] < t[1][0][0]:
+        i = 1
+        while t[0][0][i] < t[1][0][0]:
+            i += 1
+        return [(t[0][0][i:], t[0][1][i:]), t[1]]
+    else:
+        i = 0
+        while t[1][0][i] < t[0][0][0]:
+            i += 1
+        return [t[0], (t[1][0][i:], t[1][1][i:])]
+
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Improved lap chart for stracker.")
     parser.add_argument("--url", help="url of lap details page", type=str, required=True)
@@ -131,7 +185,7 @@ if __name__ == "__main__":
     p = LapDataParser()
     p.feed(r.text)
     data = tuple((x, y) for x, y in process_data(p.data))
-    t = [(x, lap_time(x * args.length * 1000, y)) for x, y in data]
+    t = [(x, lap_time(x * args.length * 1000, y)) for x, y in align(data)]
     n = min(len(x) for x, _ in t)
     plt.subplot(2, 1, 1)
     for i, (x, y) in enumerate(data):
