@@ -176,7 +176,7 @@ def align(t):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Improved lap chart for stracker.")
+    parser = argparse.ArgumentParser(description="Time-diff chart for stracker.")
     parser.add_argument("--url", help="url of lap details page", type=str, required=True)
     parser.add_argument("--length", help="circuit length (km)", type=float, required=True)
     args = parser.parse_args()
@@ -187,13 +187,15 @@ if __name__ == "__main__":
     data = tuple((x, y) for x, y in process_data(p.data))
     t = [(x, lap_time(x * args.length * 1000, y)) for x, y in align(data)]
     n = min(len(x) for x, _ in t)
-    plt.subplot(2, 1, 1)
+    fig = plt.figure()
+    ax0 = fig.add_subplot(111)
+    ax0.set_xlabel("Track Position (km)")
+    ax0.set_ylabel("Speed (km/h)")
     for i, (x, y) in enumerate(data):
-        plt.plot(x[:n] * args.length, y[:n], label="serie-%d"%i)
-    plt.grid(True)
-    plt.legend()
-    plt.subplot(2, 1, 2)
-    plt.plot(t[0][0][:n] * args.length, t[0][1][:n] - t[1][1][:n], label="time diff")
-    plt.grid(True)
-    plt.legend()
+        ax0.plot(x[:n] * args.length, y[:n], ":", label="serie-%d"%i)
+    ax0.legend()
+    ax1 = ax0.twinx()
+    ax1.set_ylabel("Time Diff (s)")
+    ax1.plot(t[0][0][:n] * args.length, t[0][1][:n] - t[1][1][:n], "g", label="time diff")
+    ax1.grid(True)
     plt.show()
