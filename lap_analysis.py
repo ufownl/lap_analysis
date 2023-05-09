@@ -137,7 +137,6 @@ class LapDataParser(HTMLParser):
         elif self.__status == LapDataParser.Status.TEXT_Y:
             self.__axis_y.append_y(float(data))
 
-
     def __data_impl(self, axis_x, axis_y):
         for line in self.__data:
             yield [(axis_x(line[i]), axis_y(line[i + 1])) for i in range(0, len(line), 2)]
@@ -192,7 +191,7 @@ if __name__ == "__main__":
     fig = plt.figure()
     ax0 = fig.add_subplot(111)
     ax0.set_xlabel("Track Position (km)")
-    ax0.set_ylabel("Speed (km/h)")
+    ax0.set_ylabel("Velocity (km/h)")
     for i, (x, y) in enumerate(data):
         ax0.plot(x[:n] * args.length, y[:n], ":", label="serie-%d"%i)
     ax0.legend()
