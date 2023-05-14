@@ -15,6 +15,7 @@
 #   along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
 
+import re
 import argparse
 import requests
 import numpy as np
@@ -179,10 +180,19 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Time-diff chart for stracker.")
     parser.add_argument("--url", help="url of lap details page", type=str, required=True)
     parser.add_argument("--length", help="circuit length (km)", type=float, required=True)
+    parser.add_argument("--lapid", help="lapid of manual selection", type=str)
     parser.add_argument("--epsilon", help="data alignment accuracy (default: 1e-4)", type=float, default=1e-4)
     args = parser.parse_args()
 
-    r = requests.get(args.url)
+    cookies = None
+    if not args.lapid is None:
+        m = re.match("^\s*(https?://\S+)/", args.url)
+        if not m is None:
+            r = requests.get(m[1] + "/lapdetails_store_lapid", {
+                "lapid": args.lapid
+            })
+            cookies = r.cookies
+    r = requests.get(args.url, cookies=cookies)
     p = LapDataParser()
     p.feed(r.text)
     data = tuple((x, y) for x, y in process_data(p.data, args.epsilon))
