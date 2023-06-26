@@ -140,7 +140,7 @@ class LapDataParser(HTMLParser):
 
     def __data_impl(self, axis_x, axis_y):
         for line in self.__data:
-            yield [(axis_x(line[i]), axis_y(line[i + 1])) for i in range(0, len(line), 2)]
+            yield [] if line is None else [(axis_x(line[i]), axis_y(line[i + 1])) for i in range(0, len(line), 2)]
 
 
 def process_data(data, epsilon):
@@ -181,6 +181,7 @@ if __name__ == "__main__":
     parser.add_argument("--url", help="url of lap details page", type=str, required=True)
     parser.add_argument("--length", help="circuit length (km)", type=float, required=True)
     parser.add_argument("--lapid", help="lapid of manual selection", type=str)
+    parser.add_argument("--xurl", help="url of lap details page (cross server)", type=str)
     parser.add_argument("--epsilon", help="data alignment accuracy (default: 1e-4)", type=float, default=1e-4)
     args = parser.parse_args()
 
@@ -195,7 +196,13 @@ if __name__ == "__main__":
     r = requests.get(args.url, cookies=cookies)
     p = LapDataParser()
     p.feed(r.text)
-    data = tuple((x, y) for x, y in process_data(p.data, args.epsilon))
+    raw_data = p.data
+    if not args.xurl is None:
+        r = requests.get(args.xurl)
+        p = LapDataParser()
+        p.feed(r.text)
+        raw_data[1] = p.data[0]
+    data = tuple((x, y) for x, y in process_data(raw_data, args.epsilon))
     t = [(x, lap_time(x * args.length * 1000, y)) for x, y in align_data(data, args.epsilon)]
     n = min(len(x) for x, _ in t)
     fig = plt.figure()
