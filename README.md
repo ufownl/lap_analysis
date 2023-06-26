@@ -19,7 +19,8 @@ $ pip3 install -r requirements.txt
 
 ```bash
 $ python3 lap_analysis.py --help
-usage: lap_analysis.py [-h] --url URL --length LENGTH [--lapid LAPID] [--epsilon EPSILON]
+usage: lap_analysis.py [-h] --url URL --length LENGTH [--lapid LAPID]
+                       [--xurl XURL] [--epsilon EPSILON]
 
 Time-diff chart for stracker.
 
@@ -28,5 +29,6 @@ options:
   --url URL          url of lap details page
   --length LENGTH    circuit length (km)
   --lapid LAPID      lapid of manual selection
+  --xurl XURL        url of lap details page (cross server)
   --epsilon EPSILON  data alignment accuracy (default: 1e-4)
 ```
