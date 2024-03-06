@@ -187,7 +187,7 @@ if __name__ == "__main__":
 
     cookies = None
     if not args.lapid is None:
-        m = re.match("^\s*(https?://\S+)/", args.url)
+        m = re.match("^\\s*(https?://\\S+)/", args.url)
         if not m is None:
             r = requests.get(m[1] + "/lapdetails_store_lapid", {
                 "lapid": args.lapid
